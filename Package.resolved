@@ -1,0 +1,97 @@
+{
+  "object": {
+    "pins": [
+      {
+        "package": "Cepoll",
+        "repositoryURL": "https://github.com/tannerdsilva/Cepoll.git",
+        "state": {
+          "branch": null,
+          "revision": "8082c69e7ab97849a3f1f26f64d8bcfbcd5e750d",
+          "version": "1.0.0"
+        }
+      },
+      {
+        "package": "CLMDB",
+        "repositoryURL": "https://github.com/tannerdsilva/CLMDB.git",
+        "state": {
+          "branch": null,
+          "revision": "f7510b3861a7f27bb054ddb0f1ee2983dd6a0f6f",
+          "version": "0.9.29"
+        }
+      },
+      {
+        "package": "Commander",
+        "repositoryURL": "https://github.com/tannerdsilva/Commander.git",
+        "state": {
+          "branch": "master",
+          "revision": "2395152956727e5d7af671cd0bd69031b768747e",
+          "version": null
+        }
+      },
+      {
+        "package": "CryptoSwift",
+        "repositoryURL": "https://github.com/krzyzanowskim/CryptoSwift.git",
+        "state": {
+          "branch": null,
+          "revision": "8d4f6384e0a8cc41f2005247241dd553963a492a",
+          "version": "1.4.1"
+        }
+      },
+      {
+        "package": "RapidLMDB",
+        "repositoryURL": "https://github.com/tannerdsilva/RapidLMDB.git",
+        "state": {
+          "branch": null,
+          "revision": "997a258b3d996fcabfd17ea2f827b0a77fe5eb06",
+          "version": "0.9.29"
+        }
+      },
+      {
+        "package": "Regex",
+        "repositoryURL": "https://github.com/crossroadlabs/Regex.git",
+        "state": {
+          "branch": null,
+          "revision": "166728756082a9cac6e4aed3ebbce8e41cb3a945",
+          "version": "1.2.0"
+        }
+      },
+      {
+        "package": "Spectre",
+        "repositoryURL": "https://github.com/kylef/Spectre.git",
+        "state": {
+          "branch": null,
+          "revision": "9df56786b193a06d47728555d96f2bedde7622ce",
+          "version": "0.10.0"
+        }
+      },
+      {
+        "package": "swift-log",
+        "repositoryURL": "https://github.com/apple/swift-log.git",
+        "state": {
+          "branch": null,
+          "revision": "5d66f7ba25daf4f94100e7022febf3c75e37a6c7",
+          "version": "1.4.2"
+        }
+      },
+      {
+        "package": "SwiftSlash",
+        "repositoryURL": "https://github.com/tannerdsilva/SwiftSlash.git",
+        "state": {
+          "branch": null,
+          "revision": "c7ee4c4509504a0aba65e3def0de7f38d589d823",
+          "version": "2.1.2"
+        }
+      },
+      {
+        "package": "TToolkit",
+        "repositoryURL": "https://github.com/tannerdsilva/TToolkit.git",
+        "state": {
+          "branch": null,
+          "revision": "cef8ab267d85d9ff980d96e1caa7ff168a5ff05a",
+          "version": null
+        }
+      }
+    ]
+  },
+  "version": 1
+}
