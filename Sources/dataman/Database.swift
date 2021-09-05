@@ -110,6 +110,7 @@ class ApplicationDatabase {
         self.env = makeEnv
         self.nameUUID = nameU
         self.uuidName = uuidName
+        self.metadata = meta
         self.datasets = dsets
         self.path = path
     }
@@ -124,6 +125,7 @@ class ApplicationDatabase {
     		} while try uuidNameCursor.contains(key:newUUID) == true
     		try nameUUIDCursor.set(value:newUUID, forKey:datasetName, flags:[.noOverwrite])
     		try uuidNameCursor.set(value:datasetName, forKey:newUUID, flags:[.noOverwrite])
+    		return newUUID
     	}
     }
     
@@ -202,6 +204,8 @@ class ZFSDatasetDatabase {
 	let scUIDInterval:Database
 	let scUIDKeep:Database
 	
+	//auto snapshots
+	
 	let metadata:Database
 	
 	init(environment inputEnv:Environment) throws {
@@ -222,18 +226,18 @@ class ZFSDatasetDatabase {
 
 			return [a, b, c, d, e]
 		}
-		self.env = transactionResult[0]
-		self.scHashUID = transactionResult[1]
-		self.scUIDLabel = transactionResult[2]
-		self.scUIDInterval = transactionResult[3]
-		self.scUIDKeep = transactionResult[4]
-		self.metadata = transactionResult[5]
+		self.env = inputEnv
+		self.scHashUID = transactionResult[0]
+		self.scUIDLabel = transactionResult[1]
+		self.scUIDInterval = transactionResult[2]
+		self.scUIDKeep = transactionResult[3]
+		self.metadata = transactionResult[4]
 	}
 	
 	//snapshot class
-	func refreshSnapshotCommands(_ foundCommands:Set<ZFS.SnapshotCommand>) {
+	func refreshSnapshotCommands(_ foundCommands:Set<ZFS.SnapshotCommand>) throws {
 		try env.transact(readOnly:false) { someTrans in
-			let hashIDCursor = try self.scHashID.cursor(tx:someTrans)
+			let hashIDCursor = try self.scHashUID.cursor(tx:someTrans)
 			let existingUIDCursor = try self.scUIDInterval.cursor(tx:someTrans)
 						
 			var processedHashes = Set<Data>()
@@ -261,11 +265,11 @@ class ZFSDatasetDatabase {
 					let curUUID = curEntry.value
 					
 					try hashIDCursor.deleteCurrent()
-					try self.scUIDLabel.delete(key:curUUID)
-					try self.scUIDInterval.delete(key:curUUID)
+					try self.scUIDLabel.delete(key:curUUID, tx:someTrans)
+					try self.scUIDInterval.delete(key:curUUID, tx:someTrans)
 					
 					do {
-						try self.scUUIDKeep.delete(key:curUUID)
+						try self.scUIDKeep.delete(key:curUUID, tx:someTrans)
 					} catch LMDBError.notFound {}
 				}
 			}
