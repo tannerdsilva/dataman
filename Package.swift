@@ -13,14 +13,15 @@ let package = Package(
         .package(url:"https://github.com/tannerdsilva/RapidLMDB.git", .exact("0.9.29")),
         .package(url:"https://github.com/tannerdsilva/SwiftSlash.git", .exact("2.1.2")),
         .package(url:"https://github.com/krzyzanowskim/CryptoSwift.git", .upToNextMinor(from:"1.4.1")),
-        .package(url:"https://github.com/crossroadlabs/Regex.git", .exact("1.2.0"))
+        .package(url:"https://github.com/crossroadlabs/Regex.git", .exact("1.2.0")),
+        .package(url:"https://github.com/apple/swift-nio-ssh.git", .exact("0.3.1"))
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
         // Targets can depend on other targets in this package, and on products in packages this package depends on.
         .target(
             name: "dataman",
-            dependencies: ["SwiftSlash", "RapidLMDB", "TToolkit", "Commander", "CryptoSwift", "Regex"]),
+            dependencies: [.product(name:"NIOSSH", package:"swift-nio-ssh"), "SwiftSlash", "RapidLMDB", "TToolkit", "Commander", "CryptoSwift", "Regex"]),
         .testTarget(
             name: "datamanTests",
             dependencies: ["dataman"]),
