@@ -1,6 +1,7 @@
 import Foundation
 import RapidLMDB
 import CryptoSwift
+import TToolkit
 
 extension ZFS.SnapshotCommand:DataConvertible {
     public init?(data:Data) {
@@ -33,9 +34,9 @@ extension ZFS.SnapshotCommand:DataConvertible {
     }
 }
 
+private let homePath = URL(fileURLWithPath:String(cString:getpwuid(getuid())!.pointee.pw_dir))
+
 class ApplicationDatabase {
-    let internalSync = DispatchQueue(label:"com.guarddog.application.sync", attributes:[.concurrent])
-    
     enum Error:Swift.Error {
         case processAlreadyRunning
         case invalidDatasetType
@@ -49,6 +50,7 @@ class ApplicationDatabase {
     enum Metadatas:String {
         case exclusiveDaemonPIDLock = "_daemonPIDLock"
         case databaseVersion = "_dbversion" //UInt32 value
+        case sshPK = "_pk-ssh"
     }
     
     let env:Environment
@@ -58,6 +60,20 @@ class ApplicationDatabase {
 	
     let metadata:Database
     
+    var sshPrivateKey:Data? {
+    	get {
+    		return try? self.metadata.get(type:Data.self, forKey:Metadatas.sshPK.rawValue, tx:nil)
+    	}
+    	set {
+    		if (newValue != nil) {
+				return try! self.metadata.set(value:newValue!, forKey:Metadatas.sshPK.rawValue, tx:nil)
+			} else {
+				try! self.metadata.delete(key:Metadatas.sshPK.rawValue, tx:nil)
+			}
+    	}
+    }
+    
+    let internalSync = DispatchQueue(label:"com.guarddog.application.sync", attributes:[.concurrent])
     var datasets:[String:ZFSDatasetDatabase]	// [ds uuid as string] -> [in memory dataset-database class]
     let path:URL
     
@@ -66,8 +82,15 @@ class ApplicationDatabase {
         return try ZFSDatasetDatabase(environment:makeEnv)
     }
     
-    init(path:URL, pidLock:Bool = true) throws {
-        let makeEnv = try Environment(path:path.appendingPathComponent("application.lmdb").path, flags:[.noSubDir], mapSize:5000000000000, maxDBs:25)
+    init(pidLock:Bool = true) throws {
+    	let path = homePath.appendingPathComponent(".dataman", isDirectory:true)
+    	if try FileManager.default.fileExists(atPath:path.path) == false {
+    		try POSIX.createDirectory(at:path.path, permissions:[.userAll])
+    	}
+    	let appDBPath = path.appendingPathComponent("application.lmdb")
+    	try POSIX.openFileHandle(path:appDBPath.path, flags:[.create], permissions:[.userRead, .userWrite]).closeFileHandle()
+
+        let makeEnv = try Environment(path:appDBPath.path, flags:[.noSubDir], mapSize:5000000000000, maxDBs:25)
         
         let (dsets, uuidName, nameU, meta) = try makeEnv.transact(readOnly:false) { someTrans -> ([String:ZFSDatasetDatabase], Database, Database, Database) in
         	let a = try makeEnv.openDatabase(named:Databases.uuid_to_name.rawValue, flags:[.create], tx:someTrans)
@@ -129,6 +152,26 @@ class ApplicationDatabase {
     	}
     }
     
+    func createNewUUIDs(datasetNames:Set<String>) throws -> [String:String] {
+    	return try env.transact(readOnly:false) { someTrans in
+    		let nameUUIDCursor = try self.nameUUID.cursor(tx:someTrans)
+    		let uuidNameCursor = try self.uuidName.cursor(tx:someTrans)
+    		var returnValue = [String:String]()
+    		for dataset in datasetNames {
+    			do {
+					var newUUID:String
+					repeat {
+						newUUID = UUID().uuidString
+					} while try uuidNameCursor.contains(key:newUUID) == true
+					try nameUUIDCursor.set(value:newUUID, forKey:dataset, flags:[.noOverwrite])
+					try uuidNameCursor.set(value:dataset, forKey:newUUID, flags:[.noOverwrite])
+					returnValue[dataset] = newUUID
+				} catch LMDBError.keyExists {}
+    		}
+    		return returnValue
+    	}
+    }
+    
     static func makeDatasetEnv(path:URL, _ guidString:String) throws -> ZFSDatasetDatabase {
     	let newEnv = try Environment(path:path.appendingPathComponent("\(guidString).lmdb").path, flags:[.noSubDir], mapSize:5000000000000, maxDBs:25)
     	return try ZFSDatasetDatabase(environment:newEnv)
@@ -185,8 +228,7 @@ class ZFSDatasetDatabase {
 		case snapshotCommandUIDToFrequency = "UID_interval"	// string -> UInt64
 		case snapshotCommandUIDKeepValue = "UID_keep"		// string -> UInt64 (optional)
 		
-		case as_names = "autosnap_names"	// [snapshot guid as string] -> [snapshot name as string]
-		case as_cmdUID = "autosnap_cmdUID" // [snapshot guid as string] -> 
+		case snapUID_scUID = "snapUID_scUID"	// [snapshot uuid] -> [snapshot command UUID]
 		
 		case metadata = "_metadata"
 	}
@@ -205,6 +247,7 @@ class ZFSDatasetDatabase {
 	let scUIDKeep:Database
 	
 	//auto snapshots
+	let snapUID_scUID:Database
 	
 	let metadata:Database
 	
@@ -214,24 +257,26 @@ class ZFSDatasetDatabase {
 			let b = try inputEnv.openDatabase(named:Databases.snapshotCommandUIDToLabel.rawValue, flags:[.create], tx:someTrans)
 			let c = try inputEnv.openDatabase(named:Databases.snapshotCommandUIDToFrequency.rawValue, flags:[.create], tx:someTrans)
 			let d = try inputEnv.openDatabase(named:Databases.snapshotCommandUIDKeepValue.rawValue, flags:[.create], tx:someTrans)
-			let e = try inputEnv.openDatabase(named:Databases.metadata.rawValue, flags:[.create], tx:someTrans)
+			let e = try inputEnv.openDatabase(named:Databases.snapUID_scUID.rawValue, flags:[.create], tx:someTrans)
+			let f = try inputEnv.openDatabase(named:Databases.metadata.rawValue, flags:[.create], tx:someTrans)
 			
 			//handle the database version
             do {
-            	let getVersion = try e.get(type:UInt32.self, forKey:Metadatas.databaseVersion.rawValue, tx:someTrans)
+            	let getVersion = try f.get(type:UInt32.self, forKey:Metadatas.databaseVersion.rawValue, tx:someTrans)
             } catch LMDBError.notFound {
             	let initialVersion:UInt32 = 0
-            	try e.set(value:initialVersion, forKey:Metadatas.databaseVersion.rawValue, flags:[.noOverwrite], tx:someTrans)
+            	try f.set(value:initialVersion, forKey:Metadatas.databaseVersion.rawValue, flags:[.noOverwrite], tx:someTrans)
             }
 
-			return [a, b, c, d, e]
+			return [a, b, c, d, e, f]
 		}
 		self.env = inputEnv
 		self.scHashUID = transactionResult[0]
 		self.scUIDLabel = transactionResult[1]
 		self.scUIDInterval = transactionResult[2]
 		self.scUIDKeep = transactionResult[3]
-		self.metadata = transactionResult[4]
+		self.snapUID_scUID = transactionResult[4]
+		self.metadata = transactionResult[5]
 	}
 	
 	//snapshot class

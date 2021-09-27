@@ -6,23 +6,47 @@ import NIO
 import Crypto
 import NIOSSH
 
+let database = try! ApplicationDatabase(pidLock:false)
+let mainGroup = MultiThreadedEventLoopGroup(numberOfThreads:4)
+defer {
+	try! mainGroup.syncShutdownGracefully()
+}
 let globalLogger = Logger(label:"guarddog")
 extension Logger {
 	static let global = globalLogger
 }
-Logger.global.info("dataman initialized.")
 
 Group {
 	$0.command("ssh") {
-		let group = MultiThreadedEventLoopGroup(numberOfThreads:4)
-		defer {
-			try! group.syncShutdownGracefully()
-		}
-		let newHostKey = Curve25519.Signing.PrivateKey.init()
-		let privateKey = NIOSSHPrivateKey(ed25519Key:.init())
-		
+		let sshSrv = try SSHServer(database)
+		try sshSrv.wait()
+
+//		
+//		let newHostKey:Curve25519.Signing.PrivateKey
+//		if let hasPK = database.sshPrivateKey {
+//			newHostKey = try Curve25519.Signing.PrivateKey(rawRepresentation:hasPK)
+//			print("using existing pk")
+//		} else {
+//			let makeKey = Curve25519.Signing.PrivateKey()
+//			newHostKey = makeKey
+//			database.sshPrivateKey = makeKey.rawRepresentation
+//			print("created new pk")
+//		}
+//		let privateKey = NIOSSHPrivateKey(ed25519Key:newHostKey)
+//		let bootstrap = NIO.ServerBootstrap(group:mainGroup).childChannelInitializer({ channel -> EventLoopFuture<Void> in
+//			channel.pipeline.addHandlers([NIOSSHHandler(role:.server(.init(hostKeys:[privateKey], userAuthDelegate:DirectPasswordDelegate(), globalRequestDelegate:nil)), allocator:channel.allocator, inboundChildChannelInitializer: sshChildChannelInitializer(_:_:)), ErrorHandler()]) 
+//		}).serverChannelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1).serverChannelOption(ChannelOptions.socket(SocketOptionLevel(IPPROTO_TCP), TCP_NODELAY), value: 1)
+//		let channel = try bootstrap.bind(host:"127.0.0.1", port:2222).wait()
+//		Logger.global.info("ssh server successfully bound")
+//		try channel.closeFuture.wait()
+	}
+	
+	$0.command("client") {
+		let sshClient = try SSHClient(database)
+		try sshClient.wait()
 	}
 }.run()
+
 //let zfs_snapshotPrefix = "gd_as_"
 //
 //func anchoredReferenceDate() -> Date {
